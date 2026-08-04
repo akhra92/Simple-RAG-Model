@@ -49,10 +49,5 @@ ipython_config.py
 # Pickle files
 *.pkl
 
-# Gradio private files
-.gradio
-/.gradio
-
-# Dataset and files
-knowledge-base
-
+# Streamlit
+.streamlit/secrets.toml
