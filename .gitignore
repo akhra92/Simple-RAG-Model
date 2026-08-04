@@ -53,3 +53,6 @@ ipython_config.py
 .gradio
 /.gradio
 
+# Dataset and files
+knowledge-base
+
