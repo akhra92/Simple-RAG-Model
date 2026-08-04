@@ -18,7 +18,7 @@ KNOWLEDGE_BASE = str(Path(__file__).parent / "knowledge-base")
 
 load_dotenv(override=True)
 
-embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+EMBEDDING_MODEL = "text-embedding-3-large"
 
 
 def fetch_documents():
@@ -42,7 +42,9 @@ def create_chunks(documents):
     return chunks
 
 
-def create_embeddings(chunks):
+def create_embeddings(chunks, api_key=None):
+    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL, api_key=api_key)
+
     if os.path.exists(DB_NAME):
         Chroma(persist_directory=DB_NAME, embedding_function=embeddings).delete_collection()
 

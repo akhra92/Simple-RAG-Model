@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 MODEL = "gpt-4.1-nano"
+EMBEDDING_MODEL = "text-embedding-3-large"
 DB_NAME = str(Path(__file__).parent / "vector_db")
 
-embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 RETRIEVAL_K = 10
 
 SYSTEM_PROMPT = """
@@ -24,16 +24,21 @@ Context:
 {context}
 """
 
-vectorstore = Chroma(persist_directory=DB_NAME, embedding_function=embeddings)
-retriever = vectorstore.as_retriever()
-llm = ChatOpenAI(temperature=0, model_name=MODEL)
+
+def get_retriever(api_key: str | None = None):
+    """
+    Open the vector store. The key is supplied per request so each user pays for their own calls.
+    """
+    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL, api_key=api_key)
+    vectorstore = Chroma(persist_directory=DB_NAME, embedding_function=embeddings)
+    return vectorstore.as_retriever()
 
 
-def fetch_context(question: str) -> list[Document]:
+def fetch_context(question: str, api_key: str | None = None) -> list[Document]:
     """
     Retrieve relevant context documents for a question.
     """
-    return retriever.invoke(question, k=RETRIEVAL_K)
+    return get_retriever(api_key).invoke(question, k=RETRIEVAL_K)
 
 
 def combined_question(question: str, history: list[dict] = []) -> str:
@@ -44,16 +49,19 @@ def combined_question(question: str, history: list[dict] = []) -> str:
     return prior + "\n" + question
 
 
-def answer_question(question: str, history: list[dict] = []) -> tuple[str, list[Document]]:
+def answer_question(
+    question: str, history: list[dict] = [], api_key: str | None = None
+) -> tuple[str, list[Document]]:
     """
     Answer the given question with RAG; return the answer and the context documents.
     """
     combined = combined_question(question, history)
-    docs = fetch_context(combined)
+    docs = fetch_context(combined, api_key)
     context = "\n\n".join(doc.page_content for doc in docs)
     system_prompt = SYSTEM_PROMPT.format(context=context)
     messages = [SystemMessage(content=system_prompt)]
     messages.extend(convert_to_messages(history))
     messages.append(HumanMessage(content=question))
+    llm = ChatOpenAI(temperature=0, model=MODEL, api_key=api_key)
     response = llm.invoke(messages)
     return response.content, docs
