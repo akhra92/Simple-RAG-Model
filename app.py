@@ -1,70 +1,87 @@
-import gradio as gr
-from dotenv import load_dotenv
+import os
+from pathlib import Path
 
-from pro_implementation.answer import answer_question
+import streamlit as st
+from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
+DB_NAME = Path(__file__).parent / "vector_db"
 
-def format_context(context):
-    result = "<h2 style='color: #ff7800;'>Relevant Context</h2>\n\n"
-    for doc in context:
-        result += f"<span style='color: #ff7800;'>Source: {doc.metadata['source']}</span>\n\n"
-        result += doc.page_content + "\n\n"
-    return result
+st.set_page_config(page_title="Insurellm Expert Assistant", page_icon="🏢", layout="wide")
 
 
-def message_text(content):
-    """Gradio 6 returns message content as a list of blocks like {'type': 'text', 'text': ...}"""
-    if isinstance(content, list):
-        return "".join(block.get("text", "") for block in content if isinstance(block, dict))
-    return content
+def load_api_key():
+    """Streamlit Cloud provides the key through secrets; locally it comes from .env."""
+    try:
+        if "OPENAI_API_KEY" in st.secrets:
+            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+    except FileNotFoundError:
+        pass
 
 
-def chat(history):
-    last_message = message_text(history[-1]["content"])
-    prior = [
-        {"role": m["role"], "content": message_text(m["content"])} for m in history[:-1]
-    ]
-    answer, context = answer_question(last_message, prior)
-    history.append({"role": "assistant", "content": answer})
-    return history, format_context(context)
+@st.cache_resource(show_spinner="Preparing the knowledge base...")
+def load_answerer():
+    """Build the vector store on first run, then hand back the RAG entry point."""
+    if not DB_NAME.exists():
+        from ingest import create_chunks, create_embeddings, fetch_documents
+
+        create_embeddings(create_chunks(fetch_documents()))
+
+    from answer import answer_question
+
+    return answer_question
 
 
-def main():
-    def put_message_in_chatbot(message, history):
-        return "", history + [{"role": "user", "content": message}]
+load_api_key()
+answer_question = load_answerer()
 
-    theme = gr.themes.Soft(font=["Inter", "system-ui", "sans-serif"])
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "context" not in st.session_state:
+    st.session_state.context = []
 
-    with gr.Blocks(title="Insurellm Expert Assistant") as ui:
-        gr.Markdown("# 🏢 Insurellm Expert Assistant\nAsk me anything about Insurellm!")
+st.title("🏢 Insurellm Expert Assistant")
+st.caption("Ask me anything about Insurellm!")
 
-        with gr.Row():
-            with gr.Column(scale=1):
-                chatbot = gr.Chatbot(
-                    label="💬 Conversation", height=600, buttons=["copy", "copy_all"]
-                )
-                message = gr.Textbox(
-                    label="Your Question",
-                    placeholder="Ask anything about Insurellm...",
-                    show_label=False,
-                )
+chat_column, context_column = st.columns(2)
 
-            with gr.Column(scale=1):
-                context_markdown = gr.Markdown(
-                    label="📚 Retrieved Context",
-                    value="*Retrieved context will appear here*",
-                    container=True,
-                    height=600,
-                )
+with chat_column:
+    st.subheader("💬 Conversation")
+    transcript = st.container(height=600)
+    for message in st.session_state.messages:
+        transcript.chat_message(message["role"]).markdown(message["content"])
 
-        message.submit(
-            put_message_in_chatbot, inputs=[message, chatbot], outputs=[message, chatbot]
-        ).then(chat, inputs=chatbot, outputs=[chatbot, context_markdown])
+question = st.chat_input("Ask anything about Insurellm...")
 
-    ui.launch(inbrowser=True, theme=theme)
+if question:
+    history = list(st.session_state.messages)
+    st.session_state.messages.append({"role": "user", "content": question})
+    transcript.chat_message("user").markdown(question)
 
+    with transcript.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            answer, context = answer_question(question, history)
+        st.markdown(answer)
 
-if __name__ == "__main__":
-    main()
+    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.session_state.context = context
+
+with context_column:
+    st.subheader("📚 Retrieved Context")
+    panel = st.container(height=600)
+    if st.session_state.context:
+        for doc in st.session_state.context:
+            panel.markdown(f":orange[**Source:** {doc.metadata.get('source', 'unknown')}]")
+            panel.markdown(doc.page_content)
+            panel.divider()
+    else:
+        panel.markdown("*Retrieved context will appear here*")
+
+with st.sidebar:
+    st.header("Insurellm Expert Assistant")
+    st.write("A retrieval-augmented chat assistant over the Insurellm knowledge base.")
+    if st.button("Clear conversation", use_container_width=True):
+        st.session_state.messages = []
+        st.session_state.context = []
+        st.rerun()

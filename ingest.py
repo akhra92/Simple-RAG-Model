@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 
 MODEL = "gpt-4.1-nano"
 
-DB_NAME = str(Path(__file__).parent.parent / "vector_db")
-KNOWLEDGE_BASE = str(Path(__file__).parent.parent / "knowledge-base")
+DB_NAME = str(Path(__file__).parent / "vector_db")
+KNOWLEDGE_BASE = str(Path(__file__).parent / "knowledge-base")
 
 # embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
