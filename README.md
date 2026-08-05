@@ -34,15 +34,6 @@ On the first run the app builds the vector store from `knowledge-base/` into `ve
 python ingest.py
 ```
 
-## Deploy to Streamlit Cloud
-
-1. Push the repo to GitHub.
-2. Create a new app at [share.streamlit.io](https://share.streamlit.io) pointing at `app.py`.
-
-No secrets to configure — each visitor supplies their own OpenAI API key in the sidebar, so they pay for their own usage. The key is held in that visitor's session only and is never written to disk.
-
-The knowledge base is committed, so the app builds its vector store on first boot.
-
 ## Files
 
 | File | Purpose |
