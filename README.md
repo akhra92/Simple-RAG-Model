@@ -2,7 +2,7 @@
 
 A retrieval-augmented chat assistant that answers questions about Insurellm from a local markdown knowledge base.
 
-**Live demo:** [Live Demo](https://simple-rag-model.streamlit.app/) — bring your own OpenAI API key.
+[Live Demo](https://simple-rag-model.streamlit.app/) — you need to bring your own OpenAI API key.
 
 ## Stack
 
